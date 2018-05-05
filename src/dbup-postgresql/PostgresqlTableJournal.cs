@@ -2,6 +2,7 @@
 using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
+using DbUp.Helpers;
 using DbUp.Support;
 
 namespace DbUp.Postgresql
@@ -19,14 +20,21 @@ namespace DbUp.Postgresql
         /// <param name="logger">The upgrade logger.</param>
         /// <param name="schema">The name of the schema the journal is stored in.</param>
         /// <param name="tableName">The name of the journal table.</param>
-        public PostgresqlTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string schema, string tableName)
-            :base(connectionManager, logger, new PostgresqlObjectParser(), schema, tableName)
+        public PostgresqlTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, Func<IHasher> hasher, string schema, string tableName)
+            :base(connectionManager, logger, new PostgresqlObjectParser(), hasher, schema, tableName)
         {
         }
 
-        protected override string GetInsertJournalEntrySql(string @scriptName, string @applied)
+        protected override string GetInsertJournalEntrySql(string scriptName, string applied, string hash, SqlScript script)
         {
-            return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
+            if (script.RedeployOnChange)
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied, Hash) values ({@scriptName}, {@applied}, {@hash})";
+            }
+            else
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
+            }
         }
 
         protected override string GetJournalEntriesSql()
@@ -44,6 +52,11 @@ $@"CREATE TABLE {FqSchemaTableName}
     applied timestamp without time zone NOT NULL,
     CONSTRAINT {quotedPrimaryKeyName} PRIMARY KEY (schemaversionsid)
 )";
+        }
+
+        protected override string CreateHashColumnSql()
+        {
+            return string.Format($"alter table {FqSchemaTableName} add [Hash] varchar(100)");
         }
     }
 }

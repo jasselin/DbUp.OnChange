@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
+using DbUp.Helpers;
 
 // ReSharper disable MemberCanBePrivate.Global
 namespace DbUp.Support
@@ -23,12 +25,14 @@ namespace DbUp.Support
         /// <param name="connectionManager">The connection manager.</param>
         /// <param name="logger">The log.</param>
         /// <param name="sqlObjectParser"></param>
+        /// <param name="hasher">Script content hasher</param>
         /// <param name="schema">The schema that contains the table.</param>
         /// <param name="table">The table name.</param>
         protected TableJournal(
             Func<IConnectionManager> connectionManager,
             Func<IUpgradeLog> logger,
             ISqlObjectParser sqlObjectParser,
+            Func<IHasher> hasher,
             string schema, string table)
         {
             this.sqlObjectParser = sqlObjectParser;
@@ -39,6 +43,9 @@ namespace DbUp.Support
             FqSchemaTableName = string.IsNullOrEmpty(schema)
                 ? sqlObjectParser.QuoteIdentifier(table)
                 : sqlObjectParser.QuoteIdentifier(schema) + "." + sqlObjectParser.QuoteIdentifier(table);
+
+            Hasher = hasher;
+            FirstRedeployExecution = true;
         }
 
         protected string SchemaTableSchema { get; private set; }
@@ -55,9 +62,13 @@ namespace DbUp.Support
 
         protected Func<IConnectionManager> ConnectionManager { get; private set; }
 
+        protected Func<IHasher> Hasher { get; private set; }
+
+        protected bool FirstRedeployExecution { get; private set; }
+
         protected Func<IUpgradeLog> Log { get; private set; }
 
-        public string[] GetExecutedScripts()
+        public IEnumerable<ExecutedSqlScript> GetExecutedScripts()
         {
             return ConnectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
             {
@@ -65,23 +76,29 @@ namespace DbUp.Support
                 {
                     Log().WriteInformation("Fetching list of already executed scripts.");
 
-                    var scripts = new List<string>();
+                    var scripts = new List<ExecutedSqlScript>();
 
                     using (var command = GetJournalEntriesCommand(dbCommandFactory))
                     {
                         using (var reader = command.ExecuteReader())
                         {
                             while (reader.Read())
-                                scripts.Add((string) reader[0]);
+                            {
+                                scripts.Add(new ExecutedSqlScript
+                                {
+                                    Name = reader["ScriptName"].ToString(),
+                                    Hash = (reader["Hash"] == DBNull.Value) ? null : reader["Hash"].ToString()
+                                });
+                            }
                         }
                     }
 
-                    return scripts.ToArray();
+                    return scripts;
                 }
                 else
                 {
                     Log().WriteInformation("Journal table does not exist");
-                    return new string[0];
+                    return Enumerable.Empty<ExecutedSqlScript>();
                 }
             });
         }
@@ -94,6 +111,27 @@ namespace DbUp.Support
         public virtual void StoreExecutedScript(SqlScript script, Func<IDbCommand> dbCommandFactory)
         {
             EnsureTableExistsAndIsLatestVersion(dbCommandFactory);
+           
+            // add redeployable script support if activated
+            if (FirstRedeployExecution && script.RedeployOnChange)
+            {
+                var exists = RedeployableScriptSupportIsEnabled();
+                
+                if (!exists)
+                {
+                    Log().WriteInformation($"Adding redeployable script support to the {FqSchemaTableName} table");
+
+                    using (var command = GetCreateHashColumnCommand(dbCommandFactory))
+                    {
+                        command.ExecuteNonQuery();
+
+                        Log().WriteInformation($"Redeployable script support has been added to {FqSchemaTableName} table");
+                    }
+                }
+
+                FirstRedeployExecution = false;
+            }
+
             using (var command = GetInsertScriptCommand(dbCommandFactory, script))
             {
                 command.ExecuteNonQuery();
@@ -114,7 +152,24 @@ namespace DbUp.Support
             appliedParam.Value = DateTime.Now;
             command.Parameters.Add(appliedParam);
 
-            command.CommandText = GetInsertJournalEntrySql("@scriptName", "@applied");
+            if (script.RedeployOnChange)
+            {
+                var hashParam = command.CreateParameter();
+                hashParam.ParameterName = "hash";
+
+                if (script.RedeployOnChange)
+                {
+                    hashParam.Value = Hasher().GetHash(script.Contents);
+                }
+                else
+                {
+                    hashParam.Value = DBNull.Value;
+                }
+
+                command.Parameters.Add(hashParam);
+            }
+
+            command.CommandText = GetInsertJournalEntrySql("@scriptName", "@applied", "@hash", script);
             command.CommandType = CommandType.Text;
             return command;
         }
@@ -136,13 +191,24 @@ namespace DbUp.Support
             return command;
         }
 
+        protected IDbCommand GetCreateHashColumnCommand(Func<IDbCommand> dbCommandFactory)
+        {
+            var command = dbCommandFactory();
+            command.CommandText = CreateHashColumnSql();
+            command.CommandType = CommandType.Text;
+
+            return command;
+        }
+
         /// <summary>
         /// Sql for inserting a journal entry
         /// </summary>
         /// <param name="scriptName">Name of the script name param (i.e @scriptName)</param>
         /// <param name="applied">Name of the applied param (i.e @applied)</param>
+        /// <param name="hash">Name of the hash param (i.e @applied)</param>
+        /// <param name="script">Script to insert</param>
         /// <returns></returns>
-        protected abstract string GetInsertJournalEntrySql(string @scriptName, string @applied);
+        protected abstract string GetInsertJournalEntrySql(string @scriptName, string @applied, string @hash, SqlScript script);
 
         /// <summary>
         /// Sql for getting the journal entries
@@ -154,6 +220,11 @@ namespace DbUp.Support
         /// </summary>
         /// <param name="quotedPrimaryKeyName">Following PK_{TableName}_Id naming</param>
         protected abstract string CreateSchemaTableSql(string quotedPrimaryKeyName);
+
+        /// <summary>
+        /// Sql for adding hash column to journal table
+        /// </summary>
+        protected abstract string CreateHashColumnSql();
 
         /// <summary>
         /// Unquotes a quoted identifier.
@@ -206,6 +277,35 @@ namespace DbUp.Support
             }
         }
 
+        /// <summary>
+        /// Returns whether script support is enabled before starting applying changes
+        /// </summary>
+        public bool ScriptSupportIsEnabled()
+        {
+            return ConnectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory => DoesTableExist(dbCommandFactory));
+        }
+
+        /// <summary>
+        /// Returns whether redeployable script support is enabled before starting applying changes
+        /// </summary>
+        public bool RedeployableScriptSupportIsEnabled()
+        {
+            return ConnectionManager().ExecuteCommandsWithManagedConnection(dbCommandFactory =>
+            {
+                try
+                {
+                    using (var command = dbCommandFactory())
+                    {
+                        return VerifyColumnExistsCommand(command, UnquotedSchemaTableName, "Hash", SchemaTableSchema);
+                    }
+                }
+                catch (DbException)
+                {
+                    return false;
+                }
+            });
+        }
+
         /// <summary>Verify, using database-specific queries, if the table exists in the database.</summary>
         /// <returns>1 if table exists, 0 otherwise</returns>
         protected virtual string DoesTableExistSql()
@@ -213,6 +313,22 @@ namespace DbUp.Support
             return string.IsNullOrEmpty(SchemaTableSchema)
                 ? string.Format("select 1 from INFORMATION_SCHEMA.TABLES where TABLE_NAME = '{0}'", UnquotedSchemaTableName)
                 : string.Format("select 1 from INFORMATION_SCHEMA.TABLES where TABLE_NAME = '{0}' and TABLE_SCHEMA = '{1}'", UnquotedSchemaTableName, SchemaTableSchema);
+        }
+
+        /// <summary>Verify, using database-specific queries, if the column exists in the database table.</summary>
+        /// <param name="command">The <c>IDbCommand</c> to be used for the query</param>
+        /// <param name="tableName">The name of the table</param>
+        /// <param name="columnName">The name of the column</param>
+        /// <param name="schemaName">The schema for the table</param>
+        /// <returns>True if column exists, false otherwise</returns>
+        protected virtual bool VerifyColumnExistsCommand(IDbCommand command, string tableName, string columnName, string schemaName)
+        {
+            command.CommandText = string.IsNullOrEmpty(schemaName)
+                            ? string.Format("select 1 from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = '{0}' and COLUMN_NAME = '{1}'", tableName, columnName)
+                            : string.Format("select 1 from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = '{0}' and TABLE_SCHEMA = '{1}' and COLUMN_NAME = '{2}'", tableName, schemaName, columnName);
+            command.CommandType = CommandType.Text;
+            var result = command.ExecuteScalar() as int?;
+            return result == 1;
         }
     }
 }

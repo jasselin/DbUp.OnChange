@@ -13,12 +13,28 @@ namespace DbUp.ScriptProviders
         private readonly IEnumerable<SqlScript> scripts;
 
         /// <summary>
+        /// Script options
+        /// </summary>
+        public ScriptOptions ScriptOptions { get; private set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="StaticScriptProvider"/> class.
         /// </summary>
         /// <param name="scripts">The scripts.</param>
-        public StaticScriptProvider(IEnumerable<SqlScript> scripts)
+        /// <param name="scriptOptions">Script options</param>
+        public StaticScriptProvider(IEnumerable<SqlScript> scripts, ScriptOptions scriptOptions)
         {
             this.scripts = scripts;
+
+            ScriptOptions = scriptOptions;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="StaticScriptProvider"/> class.
+        /// </summary>
+        /// <param name="scripts">The scripts.</param>
+        public StaticScriptProvider(IEnumerable<SqlScript> scripts) : this(scripts, new ScriptOptions())
+        {
         }
 
         /// <summary>

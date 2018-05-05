@@ -5,6 +5,7 @@ using DbUp.Engine.Filters;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
 using DbUp.Support;
+using DbUp.Helpers;
 
 namespace DbUp.Builder
 {
@@ -31,6 +32,10 @@ namespace DbUp.Builder
             defaultLog = new TraceUpgradeLog();
 #endif
             VariablesEnabled = true;
+
+            Hasher = new Hasher();
+
+            ScriptDependencyOrderer = new ScriptDependencyOrderer();
         }
 
         /// <summary>
@@ -86,6 +91,16 @@ namespace DbUp.Builder
         /// Gets or sets the script filter, which filters the scripts before execution
         /// </summary>
         public IScriptFilter ScriptFilter { get; set; } = new DefaultScriptFilter();
+
+        /// <summary>
+        /// Gets or sets script content hasher
+        /// </summary>
+        public IHasher Hasher { get; set; }
+
+        /// <summary>
+        /// Gets or sets script dependency orderer
+        /// </summary>
+        public ScriptDependencyOrderer ScriptDependencyOrderer { get; set; }
 
         /// <summary>
         /// A collection of variables to be replaced in scripts before they are run

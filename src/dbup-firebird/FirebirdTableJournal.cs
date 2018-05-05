@@ -4,6 +4,7 @@ using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
 using System.Data;
 using DbUp.Support;
+using DbUp.Helpers;
 
 namespace DbUp.Firebird
 {
@@ -19,8 +20,8 @@ namespace DbUp.Firebird
         /// <param name="connectionManager">The Firebird connection manager.</param>
         /// <param name="logger">The upgrade logger.</param>
         /// <param name="tableName">The name of the journal table.</param>
-        public FirebirdTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string tableName)
-            : base(connectionManager, logger, new FirebirdObjectParser(), null, tableName)
+        public FirebirdTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, Func<IHasher> hasher, string tableName)
+            : base(connectionManager, logger, new FirebirdObjectParser(), hasher, null, tableName)
         {
         }
 
@@ -71,9 +72,16 @@ END;";
             return $"select 1 from RDB$RELATIONS where RDB$SYSTEM_FLAG = 0 and RDB$RELATION_NAME = '{UnquotedSchemaTableName}'";
         }
 
-        protected override string GetInsertJournalEntrySql(string @scriptName, string @applied)
+        protected override string GetInsertJournalEntrySql(string scriptName, string applied, string hash, SqlScript script)
         {
-            return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({scriptName}, {applied})";
+            if (script.RedeployOnChange)
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied, Hash) values ({@scriptName}, {@applied}, {@hash})";
+            }
+            else
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
+            }
         }
 
         protected override string GetJournalEntriesSql()
@@ -91,6 +99,11 @@ $@"CREATE TABLE {FqSchemaTableName}
     applied TIMESTAMP NOT NULL,
     CONSTRAINT pk_{UnquotedSchemaTableName}_id PRIMARY KEY (schemaversionsid)
 )";
+        }
+
+        protected override string CreateHashColumnSql()
+        {
+            return string.Format($"alter table {FqSchemaTableName} add [Hash] varchar(100)");
         }
     }
 }

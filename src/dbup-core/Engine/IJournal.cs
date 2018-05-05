@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 
 namespace DbUp.Engine
@@ -12,7 +13,7 @@ namespace DbUp.Engine
         /// Recalls the version number of the database.
         /// </summary>
         /// <returns></returns>
-        string[] GetExecutedScripts();
+        IEnumerable<ExecutedSqlScript> GetExecutedScripts();
 
         /// <summary>
         /// Records an upgrade script for a database.
@@ -26,5 +27,17 @@ namespace DbUp.Engine
         /// This is called just before a script is executed
         /// </summary>
         void EnsureTableExistsAndIsLatestVersion(Func<IDbCommand> dbCommandFactory);
+
+        /// <summary>
+        /// Returns whether script support is enabled in the database before starting applying changes
+        /// </summary>
+        /// <returns></returns>
+        bool ScriptSupportIsEnabled();
+
+        /// <summary>
+        /// Returns whether redeployable script support is enabled in the database before starting applying changes
+        /// </summary>
+        /// <returns></returns>
+        bool RedeployableScriptSupportIsEnabled();
     }
 }

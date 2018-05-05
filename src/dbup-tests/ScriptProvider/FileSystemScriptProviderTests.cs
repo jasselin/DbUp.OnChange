@@ -20,7 +20,7 @@ namespace DbUp.Tests.ScriptProvider
             [Fact]
             public void it_should_throw_when_empty_options()
             {
-                Should.Throw<ArgumentNullException>(() => { new FileSystemScriptProvider("Whatever", (FileSystemScriptOptions)null); });
+                Should.Throw<ArgumentNullException>(() => { new FileSystemScriptProvider("Whatever", (FileSystemScriptOptions)null, new ScriptOptions()); });
             }
         }
 
@@ -97,7 +97,7 @@ namespace DbUp.Tests.ScriptProvider
                     return true;
                     }
                 };
-                return new FileSystemScriptProvider(testPath, options);
+                return new FileSystemScriptProvider(testPath, options, new ScriptOptions());
             }
 
 
@@ -135,7 +135,7 @@ namespace DbUp.Tests.ScriptProvider
             {
                 TestScripts.Create(out testPath);
                 var options = new FileSystemScriptOptions() { IncludeSubDirectories = true };
-                return new FileSystemScriptProvider(testPath, options);
+                return new FileSystemScriptProvider(testPath, options, new ScriptOptions());
             }
 
 

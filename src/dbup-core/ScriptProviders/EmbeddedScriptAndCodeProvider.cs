@@ -17,15 +17,32 @@ namespace DbUp.ScriptProviders
         private readonly Func<string, bool> filter;
 
         /// <summary>
+        /// Script options
+        /// </summary>
+        public ScriptOptions ScriptOptions { get; private set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="EmbeddedScriptProvider"/> class.
         /// </summary>
         /// <param name="assembly">The assembly.</param>
-        /// <param name="filter">The embedded script filter.</param>
-        public EmbeddedScriptAndCodeProvider(Assembly assembly, Func<string, bool> filter)
+        /// <param name="filter">The embedded sql script filter.</param>
+        /// <param name="scriptOptions">Script options</param>
+        public EmbeddedScriptAndCodeProvider(Assembly assembly, Func<string, bool> filter, ScriptOptions scriptOptions)
         {
             this.assembly = assembly;
             this.filter = filter;
             embeddedScriptProvider = new EmbeddedScriptProvider(assembly, filter);
+
+            ScriptOptions = scriptOptions;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EmbeddedScriptProvider"/> class.
+        /// </summary>
+        /// <param name="assembly">The assembly.</param>
+        /// <param name="filter">The embedded script filter.</param>
+        public EmbeddedScriptAndCodeProvider(Assembly assembly, Func<string, bool> filter) : this(assembly, filter, new ScriptOptions())
+        {
         }
 
         private IEnumerable<SqlScript> ScriptsFromScriptClasses(IConnectionManager connectionManager)

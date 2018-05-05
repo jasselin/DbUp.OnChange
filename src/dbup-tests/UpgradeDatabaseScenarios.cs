@@ -203,6 +203,8 @@ namespace DbUp.Tests
                 this.sqlScripts = sqlScripts;
             }
 
+            public ScriptOptions ScriptOptions { get; private set; }
+
             public IEnumerable<SqlScript> GetScripts(IConnectionManager connectionManager)
             {
                 return sqlScripts;

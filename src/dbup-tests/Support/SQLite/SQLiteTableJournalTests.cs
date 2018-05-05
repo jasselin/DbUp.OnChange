@@ -9,6 +9,8 @@ using NSubstitute;
 using DbUp.SQLite;
 using Xunit;
 using Shouldly;
+using DbUp.Helpers;
+using System.Linq;
 
 namespace DbUp.Tests.Support.SQLite
 {
@@ -24,14 +26,15 @@ namespace DbUp.Tests.Support.SQLite
             var connectionManager = Substitute.For<IConnectionManager>();
             command.ExecuteScalar().Returns(x => { throw new SQLiteException("table not found"); });
             var consoleUpgradeLog = new ConsoleUpgradeLog();
-            var journal = new SQLiteTableJournal(() => connectionManager, () => consoleUpgradeLog, "SchemaVersions");
+            var hasher = new Hasher();
+            var journal = new SQLiteTableJournal(() => connectionManager, () => consoleUpgradeLog, () => hasher, "SchemaVersions");
 
             // When
             var scripts = journal.GetExecutedScripts();
 
             // Expect
             command.DidNotReceive().ExecuteReader();
-            scripts.ShouldBeEmpty();
+            Assert.Empty(scripts);
         }
 
         [Fact]
@@ -47,7 +50,8 @@ namespace DbUp.Tests.Support.SQLite
             command.CreateParameter().Returns(param1, param2);
             command.ExecuteScalar().Returns(x => 0);
             var consoleUpgradeLog = new ConsoleUpgradeLog();
-            var journal = new SQLiteTableJournal(() => connectionManager, () => consoleUpgradeLog, "SchemaVersions");
+            var hasher = new Hasher();
+            var journal = new SQLiteTableJournal(() => connectionManager, () => consoleUpgradeLog, () => hasher, "SchemaVersions");
 
             // When
             journal.StoreExecutedScript(new SqlScript("test", "select 1"), () => command);

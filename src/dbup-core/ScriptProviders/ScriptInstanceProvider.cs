@@ -12,6 +12,11 @@ namespace DbUp.ScriptProviders
         private readonly Func<IScript, string> namer;
 
         /// <summary>
+        /// Script options
+        /// </summary>
+        public ScriptOptions ScriptOptions { get; private set; }
+
+        /// <summary>
         /// Provider used to directly include an IScript instance during migrations
         /// </summary>
         /// <param name="scripts">The IScript instances to include</param>

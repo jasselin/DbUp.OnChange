@@ -18,16 +18,34 @@ namespace DbUp.ScriptProviders
         private readonly Func<string, bool> filter;
 
         /// <summary>
+        /// Script options
+        /// </summary>
+        public ScriptOptions ScriptOptions { get; private set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="EmbeddedScriptsProvider"/> class.
         /// </summary>
         /// <param name="assemblies">The assemblies to search.</param>
         /// <param name="filter">The filter.</param>
         /// <param name="encoding">The encoding.</param>
-        public EmbeddedScriptsProvider(Assembly[] assemblies, Func<string, bool> filter, Encoding encoding)
+        /// <param name="scriptOptions">Script options</param>
+        public EmbeddedScriptsProvider(Assembly[] assemblies, Func<string, bool> filter, Encoding encoding, ScriptOptions scriptOptions)
         {
             this.assemblies = assemblies;
             this.filter = filter;
             this.encoding = encoding;
+
+            ScriptOptions = scriptOptions;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EmbeddedScriptsProvider"/> class.
+        /// </summary>
+        /// <param name="assemblies">The assemblies to search.</param>
+        /// <param name="filter">The filter.</param>
+        /// <param name="encoding">The encoding.</param>
+        public EmbeddedScriptsProvider(Assembly[] assemblies, Func<string, bool> filter, Encoding encoding) : this(assemblies, filter, encoding, new ScriptOptions())
+        {
         }
 
         /// <summary>

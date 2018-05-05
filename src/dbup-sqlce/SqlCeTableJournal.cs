@@ -2,6 +2,7 @@
 using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
+using DbUp.Helpers;
 using DbUp.Support;
 
 namespace DbUp.SqlCe
@@ -22,14 +23,21 @@ namespace DbUp.SqlCe
         /// <example>
         /// var journal = new TableJournal("Server=server;Database=database;Trusted_Connection=True", "dbo", "MyVersionTable");
         /// </example>
-        public SqlCeTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string schema, string table)
-            : base(connectionManager, logger, new SqlCeObjectParser(), schema, table)
+        public SqlCeTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, Func<IHasher> hasher, string schema, string table)
+            : base(connectionManager, logger, new SqlCeObjectParser(), hasher, schema, table)
         {
         }
 
-        protected override string GetInsertJournalEntrySql(string @scriptName, string @applied)
+        protected override string GetInsertJournalEntrySql(string scriptName, string applied, string hash, SqlScript script)
         {
-            return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
+            if (script.RedeployOnChange)
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied, Hash) values ({@scriptName}, {@applied}, {@hash})";
+            }
+            else
+            {
+                return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
+            }
         }
 
         protected override string GetJournalEntriesSql()
@@ -54,6 +62,11 @@ $@"create table {FqSchemaTableName} (
 
             return $"SELECT count(*) FROM information_schema.tables WHERE table_schema = '{SchemaTableSchema}'AND table_name = '{UnquotedSchemaTableName}')";
 
+        }
+
+        protected override string CreateHashColumnSql()
+        {
+            return string.Format($"alter table {FqSchemaTableName} add [Hash] nvarchar(100)");
         }
     }
 }

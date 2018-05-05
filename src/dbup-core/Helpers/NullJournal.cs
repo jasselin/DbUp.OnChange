@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using DbUp.Engine;
 
 namespace DbUp.Helpers
@@ -13,9 +15,9 @@ namespace DbUp.Helpers
         /// Returns an empty array of length 0
         /// </summary>
         /// <returns></returns>
-        public string[] GetExecutedScripts()
+        public IEnumerable<ExecutedSqlScript> GetExecutedScripts()
         {
-            return new string[0];
+            return Enumerable.Empty<ExecutedSqlScript>();
         }
 
         /// <summary>
@@ -28,5 +30,21 @@ namespace DbUp.Helpers
 
         public void EnsureTableExistsAndIsLatestVersion(Func<IDbCommand> dbCommandFactory)
         { }
+
+        /// <summary>
+        /// Returns whether script support is enabled before starting applying changes
+        /// </summary>
+        public bool ScriptSupportIsEnabled()
+        {
+            return false;
+        }
+
+        /// <summary>
+        /// Returns whether redeployable script support is enabled before starting applying changes
+        /// </summary>
+        public bool RedeployableScriptSupportIsEnabled()
+        {
+            return false;
+        }
     }
 }

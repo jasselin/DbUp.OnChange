@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using DbUp.Engine;
 using DbUp.Engine.Transactions;
 
@@ -18,10 +19,15 @@ namespace DbUp.ScriptProviders
         private readonly Encoding encoding;
         private FileSystemScriptOptions options;
 
+        /// <summary>
+        /// Script options
+        /// </summary>
+        public ScriptOptions ScriptOptions { get; private set; } 
+
         ///<summary>
         ///</summary>
         ///<param name="directoryPath">Path to SQL upgrade scripts</param>
-        public FileSystemScriptProvider(string directoryPath):this(directoryPath, new FileSystemScriptOptions())
+        public FileSystemScriptProvider(string directoryPath):this(directoryPath, new FileSystemScriptOptions(), new ScriptOptions())
         {
         }
 
@@ -29,7 +35,7 @@ namespace DbUp.ScriptProviders
         ///</summary>
         ///<param name="directoryPath">Path to SQL upgrade scripts</param>
         ///<param name="options">Different options for the file system script provider</param>
-        public FileSystemScriptProvider(string directoryPath, FileSystemScriptOptions options)
+        public FileSystemScriptProvider(string directoryPath, FileSystemScriptOptions options, ScriptOptions scriptOptions)
         {
             if (options==null)
                 throw new ArgumentNullException("options");
@@ -37,6 +43,8 @@ namespace DbUp.ScriptProviders
             this.filter = options.Filter;
             this.encoding = options.Encoding;
             this.options = options;
+
+            ScriptOptions = scriptOptions;
         }
 
         /// <summary>
@@ -49,9 +57,14 @@ namespace DbUp.ScriptProviders
             {
                 files = files.Where(filter);
             }
-            return files.Select(x => SqlScript.FromFile(directoryPath, x, encoding))
-                .OrderBy(x => x.Name)
-                .ToList();
+
+            return files.Select(x => {
+
+                // if subdirectory name is needed, remove root folder from file path to obtain the subdirectory name and file name
+                var scriptName = ScriptOptions.IncludeSubDirectoryInName ? new Regex(Regex.Escape(directoryPath)).Replace(x, string.Empty, 1).TrimStart('\\') : null;
+
+                return SqlScript.FromFile(x, encoding, scriptName);
+            }).OrderBy(x => x.Name).ToList();
         }
 
         private SearchOption ShouldSearchSubDirectories()

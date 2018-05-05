@@ -40,6 +40,27 @@ namespace DbUp.Engine
         public string Name { get; }
 
         /// <summary>
+        /// Gets or sets whether script should be redeployed on content change
+        /// </summary>
+        public bool RedeployOnChange { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the first deploy in 're-deploy' mode should be used as a starting point
+        /// </summary>
+        public bool FirstDeploymentAsStartingPoint { get; set; }
+
+        /// <summary>
+        /// Create a SqlScript from a file using Default encoding
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="scriptName">Custom file name</param>
+        /// <returns></returns>
+        public static SqlScript FromFile(string path, string scriptName)
+        {
+            return FromFile(path, DbUpDefaults.DefaultEncoding, scriptName);
+        }
+
+        /// <summary>
         /// Create a SqlScript from a file using Default encoding
         /// </summary>
         /// <param name="path"></param>
@@ -58,6 +79,23 @@ namespace DbUp.Engine
         public static SqlScript FromFile(string path, Encoding encoding)
             => FromFile(Path.GetDirectoryName(path), path, encoding);
         
+        /// <summary>
+        /// Create a SqlScript from a file using specified encoding
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="encoding"></param>
+        /// <param name="scriptName">Custom file name</param>
+        /// <returns></returns>
+        public static SqlScript FromFile(string path, Encoding encoding, string scriptName)
+        {
+            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            {
+                // if script name is provided, use it; otherwise use file name
+                var fileName = string.IsNullOrEmpty(scriptName) ? new FileInfo(path).Name : scriptName;
+                return FromStream(fileName, fileStream, encoding);
+            }
+        }
+
         /// <summary>
         /// Create a SqlScript from a file using specified encoding
         /// </summary>

@@ -2,6 +2,7 @@
 using DbUp.Engine;
 using DbUp.Engine.Output;
 using DbUp.Engine.Transactions;
+using DbUp.Helpers;
 using DbUp.Support;
 
 namespace DbUp.SQLite
@@ -15,11 +16,11 @@ namespace DbUp.SQLite
         /// <summary>
         /// Initializes a new instance of the <see cref="SQLiteTableJournal"/> class.
         /// </summary>
-        public SQLiteTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, string table) :
-            base(connectionManager, logger, new SQLiteObjectParser(), null, table)
+        public SQLiteTableJournal(Func<IConnectionManager> connectionManager, Func<IUpgradeLog> logger, Func<IHasher> hasher, string table) :
+            base(connectionManager, logger, new SQLiteObjectParser(), hasher, null, table)
         { }
 
-        protected override string GetInsertJournalEntrySql(string @scriptName, string @applied)
+        protected override string GetInsertJournalEntrySql(string scriptName, string applied, string hash, SqlScript script)
         {
             return $"insert into {FqSchemaTableName} (ScriptName, Applied) values ({@scriptName}, {@applied})";
         }
@@ -42,6 +43,11 @@ $@"CREATE TABLE {FqSchemaTableName} (
         protected override string DoesTableExistSql()
         {
             return $"SELECT count(name) FROM sqlite_master WHERE type = 'table' AND name = '{UnquotedSchemaTableName}'";
+        }
+
+        protected override string CreateHashColumnSql()
+        {
+            return string.Format($"alter table {FqSchemaTableName} add [Hash] TEXT");
         }
     }
 }

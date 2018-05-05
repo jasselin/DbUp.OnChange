@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DbUp.Builder;
 using DbUp.Engine.Filters;
+using DbUp.Helpers;
 
 namespace DbUp.Engine
 {
@@ -65,11 +66,35 @@ namespace DbUp.Engine
 
                     configuration.ScriptExecutor.VerifySchema();
 
+                    // check whether script support had already been enabled by a previous deployment
+                    var scriptSupportIsEnabled = configuration.Journal.ScriptSupportIsEnabled();
+
+                    // check whether redeployable script support had already been enabled by a previous deployment
+                    var redeployableScriptSupportIsEnabled = configuration.Journal.RedeployableScriptSupportIsEnabled();
+
                     foreach (var script in scriptsToExecute)
                     {
                         executedScriptName = script.Name;
 
-                        configuration.ScriptExecutor.Execute(script, configuration.Variables);
+                        // if the first deployment should be treated as a starting point and it is in fact the first deployment, 
+                        // treat the current deployment only as a baseline (do not execute scripts, only log them as executed)
+                        if
+                        (
+                            script.FirstDeploymentAsStartingPoint                                    // deployment is marked as a baseline
+                            &&
+                            (
+                                (script.RedeployOnChange && !redeployableScriptSupportIsEnabled)     // redeploy on change and it is the first deployment
+                                ||
+                                (!script.RedeployOnChange && !scriptSupportIsEnabled)                // not redeploy and it is the first deployment
+                            )
+                        )
+                        {
+                            // do nothing here
+                        }
+                        else
+                        {
+                            configuration.ScriptExecutor.Execute(script, configuration.Variables);
+                        }
 
                         executed.Add(script);
                     }
@@ -100,11 +125,34 @@ namespace DbUp.Engine
 
         private List<SqlScript> GetScriptsToExecuteInsideOperation()
         {
-            var allScripts = configuration.ScriptProviders.SelectMany(scriptProvider => scriptProvider.GetScripts(configuration.ConnectionManager));
-            var executedScriptNames = new HashSet<string>(configuration.Journal.GetExecutedScripts());
+            var allScripts = configuration.ScriptProviders.SelectMany(scriptProvider => {
+
+                var providerScripts = scriptProvider.GetScripts(configuration.ConnectionManager).ToList();
+                var dependencyOrderFilePath = scriptProvider.ScriptOptions.DependencyOrderFilePath;
+
+                // if a dependency file is provided, order scripts based on that
+                if (providerScripts.Count() > 0 && !string.IsNullOrEmpty(dependencyOrderFilePath))
+                {
+                    providerScripts = configuration.ScriptDependencyOrderer.GetScriptsOrderedByDependencies(providerScripts, dependencyOrderFilePath);
+                }
+
+                // if redeploy on change is activated, mark all script for redeploy
+                if (scriptProvider.ScriptOptions.RedeployOnChange || scriptProvider.ScriptOptions.FirstDeploymentAsStartingPoint)
+                {
+                    providerScripts.ForEach(e => {
+                        e.RedeployOnChange = scriptProvider.ScriptOptions.RedeployOnChange;
+                        e.FirstDeploymentAsStartingPoint = scriptProvider.ScriptOptions.FirstDeploymentAsStartingPoint;
+                    });
+                }
+
+                return providerScripts;
+            });
+
+            var executedScripts = configuration.Journal.GetExecutedScripts();
 
             var sorted = allScripts.OrderBy(s => s.Name, configuration.ScriptNameComparer);
-            var filtered = configuration.ScriptFilter.Filter(sorted, executedScriptNames, configuration.ScriptNameComparer);
+            var filtered = configuration.ScriptFilter.Filter(sorted, executedScripts, configuration.ScriptNameComparer, configuration.Hasher);
+
             return filtered.ToList();
         }
 
@@ -112,7 +160,7 @@ namespace DbUp.Engine
         {
             using (configuration.ConnectionManager.OperationStarting(configuration.Log, new List<SqlScript>()))
             {
-                return configuration.Journal.GetExecutedScripts()
+                return configuration.Journal.GetExecutedScripts().Select(e => e.Name)
                     .ToList();
             }
         }
