@@ -53,6 +53,10 @@ A possible structure of the _Migrations_ and _Programmability_ folders:
 
 ![Folder structure](https://raw.githubusercontent.com/szilarddavid/dbup.onchange/master/docs/images/onchange.png)
 
+# NuGet package
+
+[![NuGet version](https://badge.fury.io/nu/dbup.onchange-sqlserver.svg)](https://badge.fury.io/nu/dbup.onchange-sqlserver)
+
 # Available ScriptOptions
 
 ### RedeployOnChange
