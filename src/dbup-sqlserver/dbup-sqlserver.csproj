@@ -4,7 +4,7 @@
     <Description>DbUp makes it easy to deploy and upgrade SQL Server databases by running change scripts.</Description>
     <Title>DbUp MS Sql Server Support</Title>
     <Authors>Paul Stovell;Jim Burger;Jake Ginnivan;Damian Maclennan;Szilard David</Authors>
-    <TargetFrameworks>netstandard1.3;net35</TargetFrameworks>
+    <TargetFrameworks>net45</TargetFrameworks>
     <AssemblyName>dbup-sqlserver</AssemblyName>
     <AssemblyOriginatorKeyFile>../dbup.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
@@ -36,6 +36,11 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard1.3|AnyCPU'">
     <DebugType>pdbonly</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net45|AnyCPU'">
+    <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 

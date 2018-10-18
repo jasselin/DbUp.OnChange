@@ -6,7 +6,7 @@ using DbUp.Engine.Transactions;
 
 namespace DbUp.ScriptProviders
 {
-    internal class ScriptInstanceProvider : IScriptProvider
+    public class ScriptInstanceProvider : IScriptProvider
     {
         private readonly IScript[] scripts;
         private readonly Func<IScript, string> namer;
@@ -34,6 +34,7 @@ namespace DbUp.ScriptProviders
         {
             this.scripts = scripts;
             this.namer = namer;
+            this.ScriptOptions = new ScriptOptions();
         }
 
         public IEnumerable<SqlScript> GetScripts(IConnectionManager connectionManager)
